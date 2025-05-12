@@ -18,7 +18,7 @@ caption_video_schema = {
         "font_size": {"type": "integer", "minimum": 12, "maximum": 72},
         "font_color": {"type": "string"},
         "background": {"type": "boolean"},
-        "position": {"type": "string", "enum": ["bottom", "top"]},
+        "position": {"type": "string", "enum": ["bottom", "top", "center"]},
         "webhook_url": {"type": "string", "format": "uri"},
         "id": {"type": "string"}
     },
@@ -33,7 +33,7 @@ meme_overlay_schema = {
         "meme_url": {"type": "string", "format": "uri"},
         "position": {
             "type": "string",
-            "enum": ["top", "bottom", "left", "right", "top_left", "top_right", "bottom_left", "bottom_right", "center"]
+            "enum": ["top_left", "top_right", "bottom_left", "bottom_right"]
         },
         "scale": {"type": "number", "minimum": 0.1, "maximum": 1.0},
         "webhook_url": {"type": "string", "format": "uri"},
@@ -89,7 +89,7 @@ def caption_video():
     data = request.get_json()
     
     try:
-        job_id = data.get('id', None)
+        job_id = data.get('id')
         
         result = add_captions_to_video(
             video_url=data['video_url'],
@@ -110,36 +110,7 @@ def caption_video():
         })
         
     except Exception as e:
-        logger.exception(f"Error procesando video con subtítulos: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "error": "processing_error",
-            "message": str(e)
-        }), 500
-
-@video_bp.route('/concatenate', methods=['POST'])
-@require_api_key
-@validate_json(concatenate_schema)
-def concatenate_videos():
-    data = request.get_json()
-    
-    try:
-        job_id = data.get('id')
-        
-        result = concatenate_videos_service(
-            video_urls=data['video_urls'],
-            job_id=job_id,
-            webhook_url=data.get('webhook_url')
-        )
-        	
-        return jsonify({
-            "status": "success",
-            "result": result,
-            "job_id": job_id
-        })
-        
-    except Exception as e:
-        logger.exception(f"Error concatenando videos: {str(e)}")
+        logger.exception(f"Error processing video with subtitles: {str(e)}")
         return jsonify({
             "status": "error",
             "error": "processing_error",
@@ -153,7 +124,7 @@ def meme_overlay():
     data = request.get_json()
     
     try:
-        job_id = data.get('id', None)
+        job_id = data.get('id')
         
         result = process_meme_overlay(
             video_url=data['video_url'],
@@ -171,7 +142,7 @@ def meme_overlay():
         })
         
     except Exception as e:
-        logger.exception(f"Error procesando meme overlay: {str(e)}")
+        logger.exception(f"Error processing meme overlay: {str(e)}")
         return jsonify({
             "status": "error",
             "error": "processing_error",
@@ -207,7 +178,36 @@ def animated_text():
         })
         
     except Exception as e:
-        logger.exception(f"Error procesando texto animado: {str(e)}")
+        logger.exception(f"Error processing animated text: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "error": "processing_error",
+            "message": str(e)
+        }), 500
+
+@video_bp.route('/concatenate', methods=['POST'])
+@require_api_key
+@validate_json(concatenate_schema)
+def concatenate_videos():
+    data = request.get_json()
+    
+    try:
+        job_id = data.get('id')
+        
+        result = concatenate_videos_service(
+            video_urls=data['video_urls'],
+            job_id=job_id,
+            webhook_url=data.get('webhook_url')
+        )
+        
+        return jsonify({
+            "status": "success",
+            "result": result,
+            "job_id": job_id
+        })
+        
+    except Exception as e:
+        logger.exception(f"Error concatenating videos: {str(e)}")
         return jsonify({
             "status": "error",
             "error": "processing_error",
