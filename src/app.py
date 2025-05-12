@@ -1,32 +1,3 @@
-import os
-import logging.config
-import uuid
-from flask import Flask, jsonify, request, g, send_from_directory
-from flask_cors import CORS
-from werkzeug.middleware.proxy_fix import ProxyFix
-import time
-
-from .config import settings
-from .api.routes import register_routes
-from .api.docs import register_docs
-
-logging.config.dictConfig(settings.LOGGING_CONFIG)
-logger = logging.getLogger(__name__)
-
-def register_blueprints(app):
-    """Registra todos los blueprints de la API"""
-    from .api.routes.video_routes import video_bp
-    from .api.routes.media_routes import media_bp
-    from .api.routes.system_routes import system_bp
-    from .api.routes.ffmpeg_routes import ffmpeg_bp
-
-    app.register_blueprint(video_bp)
-    app.register_blueprint(media_bp)
-    app.register_blueprint(system_bp)
-    app.register_blueprint(ffmpeg_bp)
-
-    return app
-
 def create_app():
     app = Flask(__name__)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
@@ -34,6 +5,10 @@ def create_app():
     
     app.config['STORAGE_PATH'] = settings.STORAGE_PATH
     app.config['DEBUG'] = settings.DEBUG
+    app.config['API_KEY'] = settings.API_KEY
+    app.config['ENVIRONMENT'] = settings.ENVIRONMENT
+    app.config['REDIS_URL'] = settings.REDIS_URL
+    app.config['BASE_URL'] = settings.BASE_URL
     
     register_routes(app)
     register_docs(app)
@@ -97,10 +72,15 @@ def create_app():
             "request_id": g.get('request_id', 'unknown')
         }), 500
     
-    logger.info(f"Aplicación inicializada en modo: {settings.ENVIRONMENT}")
+    # Imprimir información de arranque
+    logger.info("==========================================")
+    logger.info(f"Video API arrancada en entorno: {settings.ENVIRONMENT}")
+    logger.info(f"URL base: {settings.BASE_URL}")
+    logger.info(f"API_KEY: {settings.API_KEY[:4]}{'*' * (len(settings.API_KEY) - 4)}")
+    logger.info(f"REDIS_URL: {settings.REDIS_URL}")
+    logger.info(f"STORAGE_PATH: {settings.STORAGE_PATH}")
+    logger.info(f"TEMP_DIR: {settings.TEMP_DIR}")
+    logger.info(f"LOG_DIR: {settings.LOG_DIR}")
+    logger.info("==========================================")
+    
     return app
-
-app = create_app()
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=settings.DEBUG)

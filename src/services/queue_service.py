@@ -2,20 +2,8 @@ import logging
 import time
 import os
 import importlib
-from . import video_service, media_service, animation_service
-from ..config import settings
 
 logger = logging.getLogger(__name__)
-
-# Registro de funciones de procesamiento
-TASK_REGISTRY = {
-    'add_captions_to_video': video_service.add_captions_to_video,
-    'process_meme_overlay': video_service.process_meme_overlay,
-    'concatenate_videos': video_service.concatenate_videos_service,
-    'extract_audio': media_service.extract_audio,
-    'transcribe_media': media_service.transcribe_media,
-    'animated_text': animation_service.animated_text_service
-}
 
 def enqueue_job(task_name, **kwargs):
     """
@@ -30,6 +18,18 @@ def enqueue_job(task_name, **kwargs):
         Dict con información sobre el trabajo encolado
     """
     from .redis_queue_service import enqueue_task
+    
+    # Registro de funciones de procesamiento
+    from . import video_service, media_service, animation_service
+    
+    TASK_REGISTRY = {
+        'add_captions_to_video': video_service.add_captions_to_video,
+        'process_meme_overlay': video_service.process_meme_overlay,
+        'concatenate_videos': video_service.concatenate_videos_service,
+        'extract_audio': media_service.extract_audio,
+        'transcribe_media': media_service.transcribe_media,
+        'animated_text': animation_service.animated_text_service
+    }
     
     if task_name not in TASK_REGISTRY:
         raise ValueError(f"Tarea desconocida: {task_name}")
@@ -48,6 +48,18 @@ def process_queue(max_tasks=10):
         Número de tareas procesadas
     """
     from .redis_queue_service import fetch_pending_task, update_task_status, TaskStatus
+    
+    # Registro de funciones de procesamiento
+    from . import video_service, media_service, animation_service
+    
+    TASK_REGISTRY = {
+        'add_captions_to_video': video_service.add_captions_to_video,
+        'process_meme_overlay': video_service.process_meme_overlay,
+        'concatenate_videos': video_service.concatenate_videos_service,
+        'extract_audio': media_service.extract_audio,
+        'transcribe_media': media_service.transcribe_media,
+        'animated_text': animation_service.animated_text_service
+    }
     
     tasks_processed = 0
     

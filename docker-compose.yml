@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+      - ./temp:/app/temp
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - DEBUG=True
+      - LOG_LEVEL=INFO
+      - API_KEY=${API_KEY}
+      - STORAGE_PATH=/app/storage
+      - TEMP_DIR=/app/temp
+      - LOG_DIR=/app/logs
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    depends_on:
+      - redis
+    command: python -m src.wsgi
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  redis_worker:
+    build: .
+    volumes:
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+      - ./temp:/app/temp
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - DEBUG=True
+      - LOG_LEVEL=INFO
+      - API_KEY=${API_KEY}
+      - STORAGE_PATH=/app/storage
+      - TEMP_DIR=/app/temp
+      - LOG_DIR=/app/logs
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    depends_on:
+      - redis
+    command: python -m src.redis_worker
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+

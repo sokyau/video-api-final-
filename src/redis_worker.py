@@ -4,8 +4,6 @@ import time
 import logging
 import signal
 import importlib
-from .services.redis_queue_service import fetch_pending_task, update_task_status, TaskStatus
-from .services.cleanup_service import cleanup_service
 from .config import settings
 
 logging.basicConfig(
@@ -32,14 +30,18 @@ signal.signal(signal.SIGTERM, signal_handler)
 task_functions = {}
 
 def load_task_functions():
-    from .services.video_service import add_captions_to_video, process_meme_overlay
+    # Importaciones aquí para evitar circulares
+    from .services.video_service import add_captions_to_video, process_meme_overlay, concatenate_videos_service
     from .services.media_service import extract_audio, transcribe_media
+    from .services.animation_service import animated_text_service
     
     task_functions.update({
         'add_captions_to_video': add_captions_to_video,
         'process_meme_overlay': process_meme_overlay,
+        'concatenate_videos': concatenate_videos_service,
         'extract_audio': extract_audio,
-        'transcribe_media': transcribe_media
+        'transcribe_media': transcribe_media,
+        'animated_text': animated_text_service
     })
     
     logger.info(f"Cargadas {len(task_functions)} funciones de tarea")
@@ -48,6 +50,10 @@ def main():
     logger.info("Iniciando worker de Redis...")
     
     load_task_functions()
+    
+    # Importación tardía para evitar circulares
+    from .services.redis_queue_service import fetch_pending_task, update_task_status, TaskStatus
+    from .services.cleanup_service import cleanup_service
     
     cleanup_service.start()
     logger.info("Servicio de limpieza iniciado")

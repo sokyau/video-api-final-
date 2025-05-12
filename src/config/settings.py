@@ -32,6 +32,8 @@ class Settings:
         
         # Configuración de Redis
         self.REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+        self.REDIS_RETRY_ATTEMPTS = int(os.getenv("REDIS_RETRY_ATTEMPTS", 5))
+        self.REDIS_RETRY_BACKOFF = int(os.getenv("REDIS_RETRY_BACKOFF", 2))
         
         # Configuración de logging
         self.LOGGING_CONFIG = {
