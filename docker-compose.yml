@@ -9,15 +9,7 @@ services:
       - ./storage:/app/storage
       - ./logs:/app/logs
       - ./temp:/app/temp
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - ENVIRONMENT=development
-      - DEBUG=True
-      - LOG_LEVEL=INFO
-      - API_KEY=${API_KEY}
-      - STORAGE_PATH=/app/storage
-      - TEMP_DIR=/app/temp
-      - LOG_DIR=/app/logs
+    env_file: .env
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -40,23 +32,15 @@ services:
       - ./storage:/app/storage
       - ./logs:/app/logs
       - ./temp:/app/temp
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - ENVIRONMENT=development
-      - DEBUG=True
-      - LOG_LEVEL=INFO
-      - API_KEY=${API_KEY}
-      - STORAGE_PATH=/app/storage
-      - TEMP_DIR=/app/temp
-      - LOG_DIR=/app/logs
+    env_file: .env
     dns:
       - 8.8.8.8
       - 1.1.1.1
     depends_on:
       - redis
+      - api
     command: python -m src.redis_worker
     restart: unless-stopped
 
 volumes:
   redis_data:
-

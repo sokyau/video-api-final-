@@ -1,3 +1,13 @@
+from flask import Flask, jsonify, g, send_from_directory, request
+from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_cors import CORS
+import uuid, os, time, logging
+from src.config.settings import settings
+from src.api.routes import register_routes
+from src.api.docs import register_docs
+
+logger = logging.getLogger(__name__)
+
 def create_app():
     app = Flask(__name__)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)

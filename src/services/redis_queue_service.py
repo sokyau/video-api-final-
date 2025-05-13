@@ -5,7 +5,7 @@ import uuid
 import redis
 from typing import Dict, Any, Callable, Optional
 from redis.exceptions import RedisError
-from ..config import settings
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,28 +38,48 @@ def init_redis_client():
 # Inicializar cliente Redis
 redis_client = init_redis_client()
 
+# Constantes
 QUEUE_NAME = "video_api:queue"
 TASK_INFO_PREFIX = "video_api:task:"
 
 class TaskStatus:
+    """Estados posibles de una tarea"""
     QUEUED = "queued"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
 def generate_job_id() -> str:
+    """Genera un ID único para un trabajo"""
     return str(uuid.uuid4())
 
-def enqueue_task(task_func_name: str, job_id: str = None, **kwargs) -> Dict[str, Any]:
+def _ensure_redis_connection():
+    """Asegura que hay una conexión Redis disponible, reintenando si es necesario"""
     global redis_client
     
     if redis_client is None:
         redis_client = init_redis_client()
-    
+        
     if redis_client is None:
-        raise RuntimeError("Redis no disponible para encolado de tareas")
+        raise RuntimeError("Redis no disponible para operaciones de cola")
     
+    return redis_client
+
+def enqueue_task(task_func_name: str, job_id: str = None, **kwargs) -> Dict[str, Any]:
+    """
+    Encola una tarea para ser procesada.
+    
+    Args:
+        task_func_name: Nombre de la función de tarea
+        job_id: ID único para el trabajo (opcional, se genera si no se proporciona)
+        **kwargs: Argumentos para la tarea
+        
+    Returns:
+        Dict con información sobre la tarea encolada
+    """
     try:
+        client = _ensure_redis_connection()
+        
         if not job_id:
             job_id = generate_job_id()
         
@@ -73,9 +93,9 @@ def enqueue_task(task_func_name: str, job_id: str = None, **kwargs) -> Dict[str,
         }
         
         task_key = f"{TASK_INFO_PREFIX}{job_id}"
-        redis_client.set(task_key, json.dumps(task_data))
+        client.set(task_key, json.dumps(task_data))
         
-        redis_client.lpush(QUEUE_NAME, json.dumps({
+        client.lpush(QUEUE_NAME, json.dumps({
             "job_id": job_id,
             "task_func": task_func_name,
             "kwargs": kwargs
@@ -88,10 +108,12 @@ def enqueue_task(task_func_name: str, job_id: str = None, **kwargs) -> Dict[str,
             "status": TaskStatus.QUEUED,
             "created_at": task_data["created_at"]
         }
-    except redis.exceptions.RedisError as e:
-        # Intentar reconectar en caso de error de Redis
+    except RedisError as e:
+        # Intentar reconectar en caso de error
         logger.error(f"Error de Redis durante encolado: {str(e)}")
+        global redis_client
         redis_client = init_redis_client()
+        
         if redis_client is None:
             raise RuntimeError(f"Redis no disponible tras error: {str(e)}")
         else:
@@ -99,26 +121,31 @@ def enqueue_task(task_func_name: str, job_id: str = None, **kwargs) -> Dict[str,
             return enqueue_task(task_func_name, job_id, **kwargs)
 
 def get_task_status(job_id: str) -> Optional[Dict[str, Any]]:
-    global redis_client
+    """
+    Obtiene el estado de una tarea por su ID.
     
-    if redis_client is None:
-        redis_client = init_redis_client()
-    
-    if redis_client is None:
-        raise RuntimeError("Redis no disponible para consultar estado")
-    
+    Args:
+        job_id: ID del trabajo
+        
+    Returns:
+        Dict con el estado de la tarea o None si no existe
+    """
     try:
+        client = _ensure_redis_connection()
+        
         task_key = f"{TASK_INFO_PREFIX}{job_id}"
-        task_data = redis_client.get(task_key)
+        task_data = client.get(task_key)
         
         if not task_data:
             return None
         
         return json.loads(task_data)
-    except redis.exceptions.RedisError as e:
-        # Intentar reconectar en caso de error de Redis
+    except RedisError as e:
+        # Intentar reconectar en caso de error
         logger.error(f"Error de Redis durante consulta de estado: {str(e)}")
+        global redis_client
         redis_client = init_redis_client()
+        
         if redis_client is None:
             raise RuntimeError(f"Redis no disponible tras error: {str(e)}")
         else:
@@ -126,17 +153,23 @@ def get_task_status(job_id: str) -> Optional[Dict[str, Any]]:
             return get_task_status(job_id)
 
 def update_task_status(job_id: str, status: str, result=None, error=None) -> bool:
-    global redis_client
+    """
+    Actualiza el estado de una tarea.
     
-    if redis_client is None:
-        redis_client = init_redis_client()
-    
-    if redis_client is None:
-        raise RuntimeError("Redis no disponible para actualizar estado")
-    
+    Args:
+        job_id: ID del trabajo
+        status: Nuevo estado de la tarea
+        result: Resultado de la tarea (opcional)
+        error: Error de la tarea (opcional)
+        
+    Returns:
+        Bool indicando si la actualización fue exitosa
+    """
     try:
+        client = _ensure_redis_connection()
+        
         task_key = f"{TASK_INFO_PREFIX}{job_id}"
-        task_data_str = redis_client.get(task_key)
+        task_data_str = client.get(task_key)
         
         if not task_data_str:
             logger.warning(f"Intento de actualizar tarea inexistente: {job_id}")
@@ -152,14 +185,16 @@ def update_task_status(job_id: str, status: str, result=None, error=None) -> boo
         elif status == TaskStatus.FAILED:
             task_data["error"] = error
         
-        redis_client.set(task_key, json.dumps(task_data))
+        client.set(task_key, json.dumps(task_data))
         logger.debug(f"Actualizado estado de tarea {job_id} a {status}")
         
         return True
-    except redis.exceptions.RedisError as e:
-        # Intentar reconectar en caso de error de Redis
+    except RedisError as e:
+        # Intentar reconectar en caso de error
         logger.error(f"Error de Redis durante actualización de estado: {str(e)}")
+        global redis_client
         redis_client = init_redis_client()
+        
         if redis_client is None:
             raise RuntimeError(f"Redis no disponible tras error: {str(e)}")
         else:
@@ -167,51 +202,46 @@ def update_task_status(job_id: str, status: str, result=None, error=None) -> boo
             return update_task_status(job_id, status, result, error)
 
 def fetch_pending_task() -> Optional[Dict[str, Any]]:
-    global redis_client
+    """
+    Obtiene y elimina una tarea pendiente de la cola.
     
-    if redis_client is None:
-        redis_client = init_redis_client()
-    
-    if redis_client is None:
-        raise RuntimeError("Redis no disponible para obtener tareas")
-    
+    Returns:
+        Dict con la tarea o None si no hay tareas pendientes
+    """
     try:
-        task_data = redis_client.rpop(QUEUE_NAME)
+        client = _ensure_redis_connection()
+        
+        task_data = client.rpop(QUEUE_NAME)
         
         if not task_data:
             return None
         
         return json.loads(task_data)
-    except redis.exceptions.RedisError as e:
-        # Intentar reconectar en caso de error de Redis
+    except RedisError as e:
+        # Intentar reconectar en caso de error
         logger.error(f"Error de Redis durante obtención de tarea: {str(e)}")
+        global redis_client
         redis_client = init_redis_client()
+        
         if redis_client is None:
             raise RuntimeError(f"Redis no disponible tras error: {str(e)}")
         else:
             # Reintento de la operación
             return fetch_pending_task()
 
-task_functions_registry = {}
-
-def register_task_functions(task_functions: Dict[str, Callable]) -> None:
-    global task_functions_registry
-    task_functions_registry = task_functions
-    logger.info(f"Registradas {len(task_functions)} funciones de tarea")
-
 def get_queue_stats() -> Dict[str, Any]:
-    global redis_client
+    """
+    Obtiene estadísticas de la cola.
     
-    if redis_client is None:
-        redis_client = init_redis_client()
-    
-    if redis_client is None:
-        raise RuntimeError("Redis no disponible para estadísticas")
-    
+    Returns:
+        Dict con estadísticas de la cola
+    """
     try:
-        queue_length = redis_client.llen(QUEUE_NAME)
+        client = _ensure_redis_connection()
         
-        task_keys = redis_client.keys(f"{TASK_INFO_PREFIX}*")
+        queue_length = client.llen(QUEUE_NAME)
+        
+        task_keys = client.keys(f"{TASK_INFO_PREFIX}*")
         status_counts = {
             TaskStatus.QUEUED: 0,
             TaskStatus.PROCESSING: 0,
@@ -220,7 +250,7 @@ def get_queue_stats() -> Dict[str, Any]:
         }
         
         for key in task_keys:
-            task_data_str = redis_client.get(key)
+            task_data_str = client.get(key)
             if task_data_str:
                 task_data = json.loads(task_data_str)
                 status = task_data.get("status")
@@ -232,12 +262,38 @@ def get_queue_stats() -> Dict[str, Any]:
             "total_tasks": len(task_keys),
             "tasks_by_status": status_counts
         }
-    except redis.exceptions.RedisError as e:
-        # Intentar reconectar en caso de error de Redis
+    except RedisError as e:
+        # Intentar reconectar en caso de error
         logger.error(f"Error de Redis durante obtención de estadísticas: {str(e)}")
+        global redis_client
         redis_client = init_redis_client()
+        
         if redis_client is None:
             raise RuntimeError(f"Redis no disponible tras error: {str(e)}")
         else:
             # Reintento de la operación
             return get_queue_stats()
+            
+def clear_queue():
+    """
+    Limpia la cola de tareas (útil para pruebas y reinicio).
+    
+    Returns:
+        Bool indicando si la operación fue exitosa
+    """
+    try:
+        client = _ensure_redis_connection()
+        
+        # Borrar clave de cola
+        client.delete(QUEUE_NAME)
+        
+        # Borrar información de tareas
+        task_keys = client.keys(f"{TASK_INFO_PREFIX}*")
+        if task_keys:
+            client.delete(*task_keys)
+        
+        logger.info(f"Cola limpiada: {len(task_keys)} tareas eliminadas")
+        return True
+    except RedisError as e:
+        logger.error(f"Error de Redis durante limpieza de cola: {str(e)}")
+        return False
