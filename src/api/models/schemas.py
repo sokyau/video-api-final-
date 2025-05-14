@@ -24,7 +24,6 @@ class VideoCaptionSchema(BaseModel):
 class MemeOverlaySchema(BaseModel):
     video_url: HttpUrl
     meme_url: HttpUrl
-    # Eliminamos la restricción Literal para permitir cualquier formato de posición
     position: Optional[str] = "bottom_right"
     scale: float = Field(0.3, ge=0.1, le=1.0)
     webhook_url: Optional[HttpUrl] = None
@@ -32,20 +31,6 @@ class MemeOverlaySchema(BaseModel):
 
     @validator('position')
     def validate_position(cls, v):
-        """
-        Validador personalizado para el campo position.
-        Acepta tanto posiciones predefinidas como formatos personalizados.
-        """
-        # Permitir posiciones predefinidas
-        predefined = ["top_left", "top_right", "bottom_left", "bottom_right", "center"]
-        if v in predefined:
-            return v
-            
-        # Permitir formato personalizado "x=50%,y=30%"
-        if v and ',' in v and ('x=' in v.lower() and 'y=' in v.lower()):
-            return v
-            
-        # Si llegamos aquí, es un formato válido
         return v
 
     class Config:
@@ -173,20 +158,6 @@ class ImageOverlaySchema(BaseModel):
 
     @validator('position')
     def validate_position(cls, v):
-        """
-        Validador personalizado para el campo position.
-        Acepta tanto posiciones predefinidas como formatos personalizados.
-        """
-        # Permitir posiciones predefinidas
-        predefined = ["top_left", "top_right", "bottom_left", "bottom_right", "center"]
-        if v in predefined:
-            return v
-            
-        # Permitir formato personalizado "x=50%,y=30%"
-        if v and ',' in v and ('x=' in v.lower() and 'y=' in v.lower()):
-            return v
-            
-        # Si llegamos aquí, es un formato válido
         return v
 
     class Config:

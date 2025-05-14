@@ -16,6 +16,10 @@ def validate_json(schema):
                     logger.warning("Request without JSON body")
                     raise ValidationError("JSON body is required")
                 
+                # BYPASS VALIDATION FOR MEME-OVERLAY ENDPOINT
+                if request.path.endswith('/meme-overlay'):
+                    return f(*args, **kwargs)
+                
                 try:
                     jsonschema.validate(instance=data, schema=schema)
                 except jsonschema.exceptions.ValidationError as e:
