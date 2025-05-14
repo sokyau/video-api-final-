@@ -39,21 +39,7 @@ def overlay_image_on_video(video_url, image_url, position='bottom_right', scale=
         output_path = generate_temp_filename(prefix=f"{job_id}_overlay_", suffix=".mp4")
         
         # Calculate position for the overlay
-        overlay_x = 10
-        overlay_y = 10
-        
-        if position == 'bottom_right':
-            overlay_x = f"W-w*{scale}-10"
-            overlay_y = f"H-h*{scale}-10"
-        elif position == 'bottom_left':
-            overlay_x = "10"
-            overlay_y = f"H-h*{scale}-10"
-        elif position == 'top_right':
-            overlay_x = f"W-w*{scale}-10"
-            overlay_y = "10"
-        elif position == 'center':
-            overlay_x = f"(W-w*{scale})/2"
-            overlay_y = f"(H-h*{scale})/2"
+        overlay_x, overlay_y = calculate_overlay_position(position, scale, video_width, video_height)
         
         filter_complex = f"[1:v]scale=iw*{scale}:-1,format=rgba,colorchannelmixer=aa={opacity}[overlay];[0:v][overlay]overlay={overlay_x}:{overlay_y}:enable='between(t,0,999999)'[out]"
         
@@ -97,6 +83,82 @@ def overlay_image_on_video(video_url, image_url, position='bottom_right', scale=
                     logger.debug(f"Job {job_id}: Temporary file removed: {file_path}")
                 except Exception as e:
                     logger.warning(f"Error removing temporary file {file_path}: {str(e)}")
+
+def calculate_overlay_position(position, scale, video_width, video_height):
+    """
+    Calculate the x, y position for overlay based on different formats.
+    Supports:
+    - Predefined positions: 'top_left', 'top_right', 'bottom_left', 'bottom_right', 'center'
+    - Percentage format: 'x=50%,y=30%'
+    - Pixel format: 'x=100,y=200'
+    """
+    # Default margins
+    margin = 10
+    
+    # Predefined positions
+    if position == 'bottom_right':
+        return f"W-w*{scale}-{margin}", f"H-h*{scale}-{margin}"
+    elif position == 'bottom_left':
+        return f"{margin}", f"H-h*{scale}-{margin}"
+    elif position == 'top_right':
+        return f"W-w*{scale}-{margin}", f"{margin}"
+    elif position == 'top_left':
+        return f"{margin}", f"{margin}"
+    elif position == 'center':
+        return f"(W-w*{scale})/2", f"(H-h*{scale})/2"
+    
+    # Custom position formats
+    if isinstance(position, str) and ',' in position:
+        parts = position.split(',')
+        if len(parts) >= 2:
+            x_part = parts[0].strip()
+            y_part = parts[1].strip()
+            
+            # Process X coordinate
+            if x_part.startswith('x='):
+                x_value = x_part[2:].strip()
+                if x_value.endswith('%'):
+                    # Percentage calculation
+                    try:
+                        x_percent = float(x_value.rstrip('%')) / 100
+                        overlay_x = f"(W-w*{scale})*{x_percent}"
+                    except ValueError:
+                        overlay_x = f"{margin}"  # Default if invalid
+                else:
+                    # Direct pixel value
+                    try:
+                        _ = float(x_value)  # Validate it's a number
+                        overlay_x = x_value
+                    except ValueError:
+                        overlay_x = f"{margin}"  # Default if invalid
+            else:
+                overlay_x = f"{margin}"  # Default
+            
+            # Process Y coordinate
+            if y_part.startswith('y='):
+                y_value = y_part[2:].strip()
+                if y_value.endswith('%'):
+                    # Percentage calculation
+                    try:
+                        y_percent = float(y_value.rstrip('%')) / 100
+                        overlay_y = f"H*{y_percent}"
+                    except ValueError:
+                        overlay_y = f"{margin}"  # Default if invalid
+                else:
+                    # Direct pixel value
+                    try:
+                        _ = float(y_value)  # Validate it's a number
+                        overlay_y = y_value
+                    except ValueError:
+                        overlay_y = f"{margin}"  # Default if invalid
+            else:
+                overlay_y = f"{margin}"  # Default
+                
+            return overlay_x, overlay_y
+    
+    # Default position (top left) if format is not recognized
+    logger.warning(f"Unrecognized position format: {position}, using default (top left)")
+    return f"{margin}", f"{margin}"
 
 def generate_thumbnail(video_url, time=0, width=640, height=360, quality=90,
                       job_id=None, webhook_url=None):
@@ -172,7 +234,10 @@ def process_meme_overlay(video_url, meme_url, position='bottom_right', scale=0.3
     Args:
         video_url: URL of the video file
         meme_url: URL of the meme image to overlay
-        position: Position of the overlay (top_left, top_right, bottom_left, bottom_right)
+        position: Position of the overlay - can be:
+                 - Predefined: 'top_left', 'top_right', 'bottom_left', 'bottom_right', 'center'
+                 - Custom percentage: 'x=50%,y=30%'
+                 - Custom pixels: 'x=100,y=200'
         scale: Scale factor for the overlay (0.1 to 1.0)
         job_id: Optional job ID
         webhook_url: Optional webhook URL for notification
@@ -205,22 +270,8 @@ def process_meme_overlay(video_url, meme_url, position='bottom_right', scale=0.3
         
         output_path = generate_temp_filename(prefix=f"{job_id}_memed_", suffix=".mp4")
         
-        # Calculate position for the overlay
-        overlay_x = 10
-        overlay_y = 10
-        
-        if position == 'bottom_right':
-            overlay_x = f"W-w*{scale}-10"
-            overlay_y = f"H-h*{scale}-10"
-        elif position == 'bottom_left':
-            overlay_x = "10"
-            overlay_y = f"H-h*{scale}-10"
-        elif position == 'top_right':
-            overlay_x = f"W-w*{scale}-10"
-            overlay_y = "10"
-        elif position == 'top_left':
-            overlay_x = "10"
-            overlay_y = "10"
+        # Calculate position using the helper function
+        overlay_x, overlay_y = calculate_overlay_position(position, scale, video_width, video_height)
         
         filter_complex = f"[0:v][1:v] overlay={overlay_x}:{overlay_y}:enable='between(t,0,999999)'[out]"
         

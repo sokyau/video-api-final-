@@ -1,4 +1,4 @@
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from pydantic import BaseModel, HttpUrl, constr, Field, validator
 
 class VideoCaptionSchema(BaseModel):
@@ -24,10 +24,29 @@ class VideoCaptionSchema(BaseModel):
 class MemeOverlaySchema(BaseModel):
     video_url: HttpUrl
     meme_url: HttpUrl
-    position: Literal["top_left", "top_right", "bottom_left", "bottom_right"] = "bottom_right"
+    # Eliminamos la restricción Literal para permitir cualquier formato de posición
+    position: Optional[str] = "bottom_right"
     scale: float = Field(0.3, ge=0.1, le=1.0)
     webhook_url: Optional[HttpUrl] = None
     id: Optional[str] = None
+
+    @validator('position')
+    def validate_position(cls, v):
+        """
+        Validador personalizado para el campo position.
+        Acepta tanto posiciones predefinidas como formatos personalizados.
+        """
+        # Permitir posiciones predefinidas
+        predefined = ["top_left", "top_right", "bottom_left", "bottom_right", "center"]
+        if v in predefined:
+            return v
+            
+        # Permitir formato personalizado "x=50%,y=30%"
+        if v and ',' in v and ('x=' in v.lower() and 'y=' in v.lower()):
+            return v
+            
+        # Si llegamos aquí, es un formato válido
+        return v
 
     class Config:
         schema_extra = {
@@ -42,6 +61,7 @@ class MemeOverlaySchema(BaseModel):
 class MediaToMp3Schema(BaseModel):
     media_url: HttpUrl
     bitrate: Optional[constr(regex=r"^[0-9]+k$")] = "192k"
+    format: Optional[Literal["mp3", "wav", "aac", "flac"]] = "mp3"
     webhook_url: Optional[HttpUrl] = None
     id: Optional[str] = None
 
@@ -56,7 +76,7 @@ class MediaToMp3Schema(BaseModel):
 class TranscribeMediaSchema(BaseModel):
     media_url: HttpUrl
     language: Optional[constr(min_length=2, max_length=5)] = "auto"
-    output_format: Literal["txt", "srt", "vtt", "json"] = "txt"
+    output_format: Optional[Literal["txt", "srt", "vtt", "json"]] = "txt"
     webhook_url: Optional[HttpUrl] = None
     id: Optional[str] = None
 
@@ -75,3 +95,107 @@ class TranscribeMediaSchema(BaseModel):
             }
         }
 
+class AnimatedTextSchema(BaseModel):
+    video_url: HttpUrl
+    text: str
+    animation: Optional[Literal["fade", "slide", "zoom", "typewriter", "bounce"]] = "fade"
+    position: Optional[Literal["top", "bottom", "center"]] = "bottom"
+    font: Optional[str] = "Arial"
+    font_size: Optional[int] = Field(36, ge=12, le=120)
+    color: Optional[str] = "white"
+    duration: Optional[float] = Field(3.0, ge=1.0, le=20.0)
+    webhook_url: Optional[HttpUrl] = None
+    id: Optional[str] = None
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "video_url": "https://example.com/video.mp4",
+                "text": "Sample Text",
+                "animation": "fade",
+                "position": "bottom",
+                "font": "Arial",
+                "font_size": 36,
+                "color": "white",
+                "duration": 3.0
+            }
+        }
+
+class ConcatenateVideosSchema(BaseModel):
+    video_urls: List[HttpUrl]
+    webhook_url: Optional[HttpUrl] = None
+    id: Optional[str] = None
+
+    @validator('video_urls')
+    def validate_video_urls(cls, v):
+        if len(v) < 2:
+            raise ValueError('At least 2 videos are required for concatenation')
+        return v
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "video_urls": [
+                    "https://example.com/video1.mp4",
+                    "https://example.com/video2.mp4"
+                ]
+            }
+        }
+
+class ThumbnailSchema(BaseModel):
+    video_url: HttpUrl
+    time: Optional[float] = 0.0
+    width: Optional[int] = Field(640, ge=32, le=3840)
+    height: Optional[int] = Field(360, ge=32, le=2160)
+    quality: Optional[int] = Field(90, ge=1, le=100)
+    webhook_url: Optional[HttpUrl] = None
+    id: Optional[str] = None
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "video_url": "https://example.com/video.mp4",
+                "time": 5.0,
+                "width": 640,
+                "height": 360,
+                "quality": 90
+            }
+        }
+
+class ImageOverlaySchema(BaseModel):
+    video_url: HttpUrl
+    image_url: HttpUrl
+    position: Optional[str] = "bottom_right"
+    scale: Optional[float] = Field(0.3, ge=0.1, le=1.0)
+    opacity: Optional[float] = Field(1.0, ge=0.0, le=1.0)
+    webhook_url: Optional[HttpUrl] = None
+    id: Optional[str] = None
+
+    @validator('position')
+    def validate_position(cls, v):
+        """
+        Validador personalizado para el campo position.
+        Acepta tanto posiciones predefinidas como formatos personalizados.
+        """
+        # Permitir posiciones predefinidas
+        predefined = ["top_left", "top_right", "bottom_left", "bottom_right", "center"]
+        if v in predefined:
+            return v
+            
+        # Permitir formato personalizado "x=50%,y=30%"
+        if v and ',' in v and ('x=' in v.lower() and 'y=' in v.lower()):
+            return v
+            
+        # Si llegamos aquí, es un formato válido
+        return v
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "video_url": "https://example.com/video.mp4",
+                "image_url": "https://example.com/overlay.png",
+                "position": "bottom_right",
+                "scale": 0.3,
+                "opacity": 1.0
+            }
+        }

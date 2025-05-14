@@ -1,6 +1,8 @@
 # src/api/routes/video_routes.py
 from flask import Blueprint, request, jsonify
-from ...services.image_service import process_meme_overlay  # Changed from video_service
+from ...services.video_service import add_captions_to_video, concatenate_videos_service
+from ...services.image_service import process_meme_overlay
+from ...services.animation_service import animated_text_service
 from ..middlewares.authentication import require_api_key
 from ..middlewares.request_validator import validate_json
 import logging
@@ -32,8 +34,9 @@ meme_overlay_schema = {
         "video_url": {"type": "string", "format": "uri"},
         "meme_url": {"type": "string", "format": "uri"},
         "position": {
-            "type": "string",
-            "enum": ["top_left", "top_right", "bottom_left", "bottom_right"]
+            "type": "string", 
+            # Soporte para posiciones personalizadas y predefinidas
+            "description": "Acepta formatos: 'top_left', 'top_right', 'bottom_left', 'bottom_right', 'center', o formato personalizado como 'x=50%,y=30%'"
         },
         "scale": {"type": "number", "minimum": 0.1, "maximum": 1.0},
         "webhook_url": {"type": "string", "format": "uri"},
@@ -86,6 +89,22 @@ animated_text_schema = {
 @require_api_key
 @validate_json(caption_video_schema)
 def caption_video():
+    """
+    Endpoint para añadir subtítulos a un video.
+    
+    Request JSON:
+    {
+        "video_url": "https://example.com/video.mp4",
+        "subtitles_url": "https://example.com/subtitles.srt",
+        "font": "Arial",                  # opcional
+        "font_size": 24,                  # opcional
+        "font_color": "white",            # opcional
+        "background": true,               # opcional
+        "position": "bottom",             # opcional
+        "webhook_url": "https://...",     # opcional
+        "id": "job-123"                   # opcional
+    }
+    """
     data = request.get_json()
     
     try:
@@ -121,6 +140,19 @@ def caption_video():
 @require_api_key
 @validate_json(meme_overlay_schema)
 def meme_overlay():
+    """
+    Endpoint para añadir una imagen superpuesta a un video (meme).
+    
+    Request JSON:
+    {
+        "video_url": "https://example.com/video.mp4",
+        "meme_url": "https://example.com/meme.png",
+        "position": "bottom_right",       # opcional - también acepta 'x=50%,y=30%'
+        "scale": 0.3,                     # opcional (0.1 a 1.0)
+        "webhook_url": "https://...",     # opcional
+        "id": "job-123"                   # opcional
+    }
+    """
     data = request.get_json()
     
     try:
@@ -153,6 +185,23 @@ def meme_overlay():
 @require_api_key
 @validate_json(animated_text_schema)
 def animated_text():
+    """
+    Endpoint para añadir texto animado a un video.
+    
+    Request JSON:
+    {
+        "video_url": "https://example.com/video.mp4",
+        "text": "Texto a animar",
+        "animation": "fade",              # opcional
+        "position": "bottom",             # opcional
+        "font": "Arial",                  # opcional
+        "font_size": 36,                  # opcional
+        "color": "white",                 # opcional
+        "duration": 3.0,                  # opcional
+        "webhook_url": "https://...",     # opcional
+        "id": "job-123"                   # opcional
+    }
+    """
     data = request.get_json()
     
     try:
@@ -189,6 +238,20 @@ def animated_text():
 @require_api_key
 @validate_json(concatenate_schema)
 def concatenate_videos():
+    """
+    Endpoint para concatenar múltiples videos.
+    
+    Request JSON:
+    {
+        "video_urls": [
+            "https://example.com/video1.mp4",
+            "https://example.com/video2.mp4",
+            ...
+        ],
+        "webhook_url": "https://...",     # opcional
+        "id": "job-123"                   # opcional
+    }
+    """
     data = request.get_json()
     
     try:
