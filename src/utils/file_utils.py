@@ -7,11 +7,17 @@ import shutil
 from typing import Optional
 from urllib.parse import urlparse, unquote
 from ..config import settings
-from ..api.middlewares.error_handler import ValidationError, ProcessingError, NotFoundError
 
 logger = logging.getLogger(__name__)
 
+# Importaciones tardías para evitar ciclos
+def _get_error_classes():
+    from ..api.middlewares.error_handler import ValidationError, ProcessingError, NotFoundError
+    return ValidationError, ProcessingError, NotFoundError
+
 def download_file(url: str, target_dir: Optional[str] = None, prefix: Optional[str] = None) -> str:
+    ValidationError, ProcessingError, NotFoundError = _get_error_classes()
+    
     if not url or not isinstance(url, str):
         raise ValidationError("La URL no puede estar vacía o no ser una cadena de texto")
     
