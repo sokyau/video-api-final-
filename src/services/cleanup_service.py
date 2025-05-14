@@ -1,8 +1,9 @@
+# src/services/cleanup_service.py
 import os
 import logging
-import threading
 import time
 import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -10,81 +11,77 @@ logger = logging.getLogger(__name__)
 class CleanupService:
     def __init__(self):
         self.running = False
-        self.thread = None
-        self.cleanup_interval = 3600  # 1 hora
-        self.temp_file_max_age = 86400  # 24 horas
+        self.scheduler = BackgroundScheduler()
+        self.temp_file_max_age = 86400  # 24 hours
 
     def start(self):
         if self.running:
-            logger.warning("El servicio de limpieza ya está en ejecución")
+            logger.warning("Cleanup service is already running")
             return
 
         self.running = True
-        self.thread = threading.Thread(target=self._cleanup_loop, daemon=True)
-        self.thread.start()
-        logger.info("Servicio de limpieza iniciado")
+        
+        # Schedule cleanup job every 6 hours
+        self.scheduler.add_job(
+            self._cleanup_temp_files,
+            'interval',
+            hours=6,
+            id='cleanup_temp_files',
+            replace_existing=True
+        )
+        
+        # Start the scheduler
+        self.scheduler.start()
+        
+        logger.info("Cleanup service started with 6-hour interval")
 
     def stop(self):
         if not self.running:
-            logger.warning("El servicio de limpieza no está en ejecución")
+            logger.warning("Cleanup service is not running")
             return
 
         self.running = False
-        if self.thread:
-            self.thread.join(timeout=10)
-        logger.info("Servicio de limpieza detenido")
-
-    def _cleanup_loop(self):
-        while self.running:
-            try:
-                self._cleanup_temp_files()
-                
-                # Dormir por el intervalo configurado, pero comprobar periódicamente
-                # si el servicio debe detenerse para permitir una salida rápida
-                for _ in range(int(self.cleanup_interval / 5)):
-                    if not self.running:
-                        break
-                    time.sleep(5)
-                    
-            except Exception as e:
-                logger.exception(f"Error en el bucle de limpieza: {str(e)}")
-                time.sleep(60)  # Esperar un minuto en caso de error
+        
+        # Shutdown the scheduler
+        self.scheduler.shutdown()
+        
+        logger.info("Cleanup service stopped")
 
     def _cleanup_temp_files(self):
-        """Elimina archivos temporales antiguos"""
+        """Clean up old temporary files"""
         start_time = time.time()
-        logger.info("Iniciando limpieza de archivos temporales")
+        logger.info("Starting cleanup of temporary files")
         
-        # Calcular la fecha límite para los archivos a eliminar
+        # Calculate the cutoff date for files to delete
         cutoff_time = time.time() - self.temp_file_max_age
         cutoff_datetime = datetime.datetime.fromtimestamp(cutoff_time)
         
         deleted_count = 0
         total_size = 0
         
-        # Recorrer el directorio temporal y sus subdirectorios
+        # Walk through the temp directory and its subdirectories
         for root, _, files in os.walk(settings.TEMP_DIR):
             for filename in files:
                 file_path = os.path.join(root, filename)
                 
                 try:
-                    # Obtener la fecha de modificación del archivo
+                    # Get the file's last modification time
                     file_mtime = os.path.getmtime(file_path)
                     
-                    # Si el archivo es más antiguo que el límite, eliminarlo
+                    # If the file is older than the cutoff, delete it
                     if file_mtime < cutoff_time:
                         file_size = os.path.getsize(file_path)
                         os.remove(file_path)
                         deleted_count += 1
                         total_size += file_size
-                        logger.debug(f"Archivo temporal eliminado: {file_path}")
+                        logger.debug(f"Temporary file deleted: {file_path}")
                         
                 except Exception as e:
-                    logger.warning(f"Error procesando archivo temporal {file_path}: {str(e)}")
+                    logger.warning(f"Error processing temporary file {file_path}: {str(e)}")
         
         duration = time.time() - start_time
-        logger.info(f"Limpieza completada en {duration:.2f}s: {deleted_count} archivos eliminados, "
-                   f"{total_size / (1024*1024):.2f} MB liberados")
+        logger.info(f"Cleanup completed in {duration:.2f}s: {deleted_count} files deleted, "
+                   f"{total_size / (1024*1024):.2f} MB freed")
         
         return {
             "deleted_count": deleted_count,
@@ -93,11 +90,19 @@ class CleanupService:
             "cutoff_datetime": cutoff_datetime.isoformat()
         }
 
-# Instancia singleton del servicio de limpieza
+# Singleton instance of the cleanup service
 cleanup_service = CleanupService()
 
 def cleanup_temp_files():
     """
-    Función de utilidad para ejecutar la limpieza de archivos temporales bajo demanda.
+    Utility function to run temporary file cleanup on demand.
     """
     return cleanup_service._cleanup_temp_files()
+
+def init_cleanup_service():
+    """
+    Initialize and start the cleanup service.
+    Should be called during application startup.
+    """
+    cleanup_service.start()
+    return cleanup_service

@@ -1,8 +1,9 @@
-# tests/unit/test_animation_service.py
+# tests/unit/test_video_service.py
 import pytest
 import os
 from unittest.mock import patch, MagicMock
-from src.services.animation_service import animated_text_service, build_animation_filter
+# Import directly from the module, not through __init__
+from src.services.video_service import add_captions_to_video, process_meme_overlay
 from src.api.middlewares.error_handler import ProcessingError
 
 @pytest.fixture

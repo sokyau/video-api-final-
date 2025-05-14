@@ -1,10 +1,17 @@
 from flask import Flask, jsonify, g, send_from_directory, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
-import uuid, os, time, logging
+import uuid
+import os
+import time
+import logging
+import subprocess
 from src.config.settings import settings
 from src.api.routes import register_routes
 from src.api.docs import register_docs
+from src.api.middlewares.error_handler import register_error_handlers
+
+from src.scheduler import init_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +26,18 @@ def create_app():
     app.config['ENVIRONMENT'] = settings.ENVIRONMENT
     app.config['REDIS_URL'] = settings.REDIS_URL
     app.config['BASE_URL'] = settings.BASE_URL
+    app.config['MEDIA_URL'] = settings.MEDIA_URL
+    app.config['TEMP_DIR'] = settings.TEMP_DIR
+    app.config['LOG_DIR'] = settings.LOG_DIR
+    
+    for directory in [settings.STORAGE_PATH, settings.TEMP_DIR, settings.LOG_DIR]:
+        os.makedirs(directory, exist_ok=True)
     
     register_routes(app)
     register_docs(app)
+    register_error_handlers(app)
+    
+    init_scheduler(app)
 
     @app.before_request
     def before_request():
@@ -56,10 +72,16 @@ def create_app():
     
     @app.route('/health')
     def health():
+        ffmpeg_ok = _check_ffmpeg()
+        storage_ok = _check_storage()
+        
+        status = "healthy" if ffmpeg_ok and storage_ok else "degraded"
+        
         return jsonify({
-            "status": "healthy",
-            "storage": "ok",
-            "ffmpeg": "ok"
+            "status": status,
+            "storage": "ok" if storage_ok else "error",
+            "ffmpeg": "ok" if ffmpeg_ok else "error",
+            "timestamp": time.time()
         })
     
     @app.route('/storage/<path:filename>')
@@ -82,7 +104,6 @@ def create_app():
             "request_id": g.get('request_id', 'unknown')
         }), 500
     
-    # Imprimir información de arranque
     logger.info("==========================================")
     logger.info(f"Video API arrancada en entorno: {settings.ENVIRONMENT}")
     logger.info(f"URL base: {settings.BASE_URL}")
@@ -91,6 +112,32 @@ def create_app():
     logger.info(f"STORAGE_PATH: {settings.STORAGE_PATH}")
     logger.info(f"TEMP_DIR: {settings.TEMP_DIR}")
     logger.info(f"LOG_DIR: {settings.LOG_DIR}")
+    logger.info("Cleanup scheduler: Enabled (runs every 6 hours)")
     logger.info("==========================================")
     
     return app
+
+def _check_ffmpeg():
+    """Check if FFmpeg is available and working"""
+    try:
+        result = subprocess.run(
+            ['ffmpeg', '-version'], 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            text=True, 
+            check=False
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+def _check_storage():
+    """Check if storage directory is writable"""
+    try:
+        test_file = os.path.join(settings.STORAGE_PATH, '.write_test')
+        with open(test_file, 'w') as f:
+            f.write('test')
+        os.remove(test_file)
+        return True
+    except Exception:
+        return False

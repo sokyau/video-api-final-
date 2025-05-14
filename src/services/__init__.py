@@ -1,4 +1,9 @@
-# Moviendo imports dentro de __all__ para evitar imports circulares
+"""
+Services module initialization.
+All imports are within __all__ to avoid circular imports.
+"""
+
+# Define exported symbols but import lazily
 __all__ = [
     'add_captions_to_video',
     'process_meme_overlay',
@@ -25,17 +30,48 @@ __all__ = [
     'animated_text_service'
 ]
 
-# Importar funciones para que estén disponibles a través del paquete
-from .video_service import add_captions_to_video, process_meme_overlay, concatenate_videos_service
-from .image_service import overlay_image_on_video, generate_thumbnail
-from .storage_service import store_file, get_file_url, delete_file
-from .ffmpeg_service import run_ffmpeg_command, get_media_info
-from .webhook_service import notify_job_completed, notify_job_failed
-from .cleanup_service import cleanup_temp_files
-from .transcription_service import transcribe_audio
-from .redis_queue_service import enqueue_task, get_task_status, update_task_status, TaskStatus
-from .media_service import extract_audio, transcribe_media
-from .animation_service import animated_text_service
+# Use lazy imports pattern to break circular dependencies
+# Do not import modules at the top level
 
-# Importar al final para evitar circulares
-from .queue_service import process_queue, enqueue_job
+def __getattr__(name):
+    """Lazy import strategy to avoid circular imports"""
+    if name in __all__:
+        # Import the appropriate module based on the requested name
+        if name in ['add_captions_to_video', 'process_meme_overlay', 'concatenate_videos_service']:
+            from .video_service import add_captions_to_video, process_meme_overlay, concatenate_videos_service
+            return locals()[name]
+        elif name in ['overlay_image_on_video', 'generate_thumbnail']:
+            from .image_service import overlay_image_on_video, generate_thumbnail
+            return locals()[name]
+        elif name in ['store_file', 'get_file_url', 'delete_file']:
+            from .storage_service import store_file, get_file_url, delete_file
+            return locals()[name]
+        elif name in ['run_ffmpeg_command', 'get_media_info']:
+            from .ffmpeg_service import run_ffmpeg_command, get_media_info
+            return locals()[name]
+        elif name in ['notify_job_completed', 'notify_job_failed']:
+            from .webhook_service import notify_job_completed, notify_job_failed
+            return locals()[name]
+        elif name == 'cleanup_temp_files':
+            from .cleanup_service import cleanup_temp_files
+            return cleanup_temp_files
+        elif name == 'transcribe_audio':
+            from .transcription_service import transcribe_audio
+            return transcribe_audio
+        elif name in ['enqueue_task', 'get_task_status', 'update_task_status', 'TaskStatus']:
+            from .redis_queue_service import enqueue_task, get_task_status, update_task_status, TaskStatus
+            if name == 'TaskStatus':
+                return TaskStatus
+            return locals()[name]
+        elif name in ['extract_audio', 'transcribe_media']:
+            from .media_service import extract_audio, transcribe_media
+            return locals()[name]
+        elif name == 'animated_text_service':
+            from .animation_service import animated_text_service
+            return animated_text_service
+        elif name in ['process_queue', 'enqueue_job']:
+            from .queue_service import process_queue, enqueue_job
+            return locals()[name]
+    
+    # If we get here, the name isn't in __all__
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

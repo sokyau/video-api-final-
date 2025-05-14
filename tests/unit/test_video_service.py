@@ -2,6 +2,7 @@
 import pytest
 import os
 from unittest.mock import patch, MagicMock
+# Import directly from the module, not through __init__
 from src.services.video_service import add_captions_to_video, process_meme_overlay
 from src.api.middlewares.error_handler import ProcessingError
 

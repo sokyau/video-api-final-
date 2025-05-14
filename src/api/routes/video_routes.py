@@ -1,6 +1,6 @@
+# src/api/routes/video_routes.py
 from flask import Blueprint, request, jsonify
-from ...services.video_service import add_captions_to_video, process_meme_overlay, concatenate_videos_service
-from ...services.animation_service import animated_text_service
+from ...services.image_service import process_meme_overlay  # Changed from video_service
 from ..middlewares.authentication import require_api_key
 from ..middlewares.request_validator import validate_json
 import logging
