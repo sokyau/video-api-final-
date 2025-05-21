@@ -170,3 +170,21 @@ class ImageOverlaySchema(BaseModel):
                 "opacity": 1.0
             }
         }
+
+class AddAudioSchema(BaseModel):
+    video_url: HttpUrl
+    audio_url: HttpUrl
+    replace_audio: Optional[bool] = True
+    audio_volume: Optional[float] = Field(1.0, ge=0.0, le=10.0)
+    webhook_url: Optional[HttpUrl] = None
+    id: Optional[str] = None
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "video_url": "https://example.com/video.mp4",
+                "audio_url": "https://example.com/audio.mp3",
+                "replace_audio": True,
+                "audio_volume": 1.0
+            }
+        }

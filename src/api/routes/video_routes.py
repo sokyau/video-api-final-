@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
-from ...services.video_service import add_captions_to_video, concatenate_videos_service
+from ...services.video_service import add_captions_to_video, concatenate_videos_service, process_meme_overlay, add_audio_to_video
 from ...services.animation_service import animated_text_service
-from ...services.image_service import process_meme_overlay
 from ..middlewares.authentication import require_api_key
 from ..middlewares.request_validator import validate_json
 import logging
@@ -77,6 +76,20 @@ animated_text_schema = {
         "id": {"type": "string"}
     },
     "required": ["video_url", "text"],
+    "additionalProperties": False
+}
+
+add_audio_schema = {
+    "type": "object",
+    "properties": {
+        "video_url": {"type": "string", "format": "uri"},
+        "audio_url": {"type": "string", "format": "uri"},
+        "replace_audio": {"type": "boolean"},
+        "audio_volume": {"type": "number", "minimum": 0, "maximum": 10.0},
+        "webhook_url": {"type": "string", "format": "uri"},
+        "id": {"type": "string"}
+    },
+    "required": ["video_url", "audio_url"],
     "additionalProperties": False
 }
 
@@ -206,6 +219,38 @@ def concatenate_videos():
         
     except Exception as e:
         logger.exception(f"Error concatenating videos: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "error": "processing_error",
+            "message": str(e)
+        }), 500
+
+@video_bp.route('/add-audio', methods=['POST'])
+@require_api_key
+@validate_json(add_audio_schema)
+def add_audio():
+    data = request.get_json()
+    
+    try:
+        job_id = data.get('id')
+        
+        result = add_audio_to_video(
+            video_url=data['video_url'],
+            audio_url=data['audio_url'],
+            replace_audio=data.get('replace_audio', True),
+            audio_volume=data.get('audio_volume', 1.0),
+            job_id=job_id,
+            webhook_url=data.get('webhook_url')
+        )
+        
+        return jsonify({
+            "status": "success",
+            "result": result,
+            "job_id": job_id
+        })
+        
+    except Exception as e:
+        logger.exception(f"Error añadiendo audio a video: {str(e)}")
         return jsonify({
             "status": "error",
             "error": "processing_error",

@@ -31,7 +31,6 @@ def add_captions_to_video(video_url, subtitles_url, font='Arial', font_size=24,
         
         output_path = generate_temp_filename(prefix=f"{job_id}_captioned_", suffix=".mp4")
         
-        # Formatear el comando FFmpeg para añadir subtítulos
         background_filter = ''
         if background:
             background_filter = ':force_style=\'BackColor=&H80000000,BorderStyle=4\''
@@ -103,7 +102,6 @@ def process_meme_overlay(video_url, meme_url, position='bottom_right', scale=0.3
         
         output_path = generate_temp_filename(prefix=f"{job_id}_memed_", suffix=".mp4")
         
-        # Calcular posición para el overlay
         overlay_x = 10
         overlay_y = 10
         
@@ -171,13 +169,11 @@ def concatenate_videos_service(video_urls, job_id=None, webhook_url=None):
     output_path = None
     
     try:
-        # Descargar todos los videos
         for i, video_url in enumerate(video_urls):
             video_path = download_file(video_url, settings.TEMP_DIR, prefix=f"concat_{i}_")
             video_paths.append(video_path)
             logger.info(f"Job {job_id}: Video {i+1} descargado: {video_path}")
         
-        # Crear archivo de entrada para FFmpeg
         concat_file = os.path.join(settings.TEMP_DIR, f"{job_id}_concat_list.txt")
         with open(concat_file, 'w') as f:
             for video_path in video_paths:
@@ -234,3 +230,78 @@ def concatenate_videos_service(video_urls, job_id=None, webhook_url=None):
                 os.remove(output_path)
             except Exception as e:
                 logger.warning(f"Error eliminando archivo temporal {output_path}: {str(e)}")
+
+def add_audio_to_video(video_url, audio_url, replace_audio=True, audio_volume=1.0, 
+                     job_id=None, webhook_url=None):
+    if not job_id:
+        job_id = str(uuid.uuid4())
+    
+    logger.info(f"Job {job_id}: Iniciando adición de audio a video {video_url}")
+    
+    video_path = None
+    audio_path = None
+    output_path = None
+    
+    try:
+        video_path = download_file(video_url, settings.TEMP_DIR)
+        logger.info(f"Job {job_id}: Video descargado: {video_path}")
+        
+        audio_path = download_file(audio_url, settings.TEMP_DIR)
+        logger.info(f"Job {job_id}: Audio descargado: {audio_path}")
+        
+        output_path = generate_temp_filename(prefix=f"{job_id}_audio_video_", suffix=".mp4")
+        
+        if replace_audio:
+            command = [
+                'ffmpeg',
+                '-y',
+                '-i', video_path,
+                '-i', audio_path,
+                '-c:v', 'copy',
+                '-map', '0:v:0',
+                '-map', '1:a:0',
+                '-shortest',
+                output_path
+            ]
+        else:
+            command = [
+                'ffmpeg',
+                '-y',
+                '-i', video_path,
+                '-i', audio_path,
+                '-filter_complex', f"[0:a]volume=1.0[a1];[1:a]volume={audio_volume}[a2];[a1][a2]amix=inputs=2:duration=longest[aout]",
+                '-map', '0:v',
+                '-map', '[aout]',
+                '-c:v', 'copy',
+                output_path
+            ]
+        
+        run_ffmpeg_command(command)
+        
+        if not verify_file_integrity(output_path):
+            raise ProcessingError("El archivo de salida no es válido")
+        
+        result_url = store_file(output_path)
+        logger.info(f"Job {job_id}: Video con audio procesado y almacenado: {result_url}")
+        
+        if webhook_url:
+            notify_job_completed(job_id, webhook_url, result_url)
+        
+        return result_url
+        
+    except Exception as e:
+        logger.exception(f"Job {job_id}: Error añadiendo audio: {str(e)}")
+        
+        if webhook_url:
+            notify_job_failed(job_id, webhook_url, str(e))
+        
+        raise
+        
+    finally:
+        for file_path in [video_path, audio_path, output_path]:
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    logger.debug(f"Job {job_id}: Archivo temporal eliminado: {file_path}")
+                except Exception as e:
+                    logger.warning(f"Error eliminando archivo temporal {file_path}: {str(e)}")

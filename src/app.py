@@ -10,7 +10,8 @@ from src.config.settings import settings
 from src.api.routes import register_routes
 from src.api.docs import register_docs
 from src.api.middlewares.error_handler import register_error_handlers
-
+from src.services.video_service import add_audio_to_video
+from src.api.middlewares.authentication import require_api_key
 from src.scheduler import init_scheduler
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,48 @@ def create_app():
             
         return send_from_directory(settings.STORAGE_PATH, filename)
     
+    @app.route('/api/v1/video/add-audio', methods=['POST'])
+    @require_api_key
+    def add_audio_direct():
+        data = request.get_json()
+        
+        try:
+            job_id = data.get('id')
+            
+            result = add_audio_to_video(
+                video_url=data['video_url'],
+                audio_url=data['audio_url'],
+                replace_audio=data.get('replace_audio', True),
+                audio_volume=data.get('audio_volume', 1.0),
+                job_id=job_id,
+                webhook_url=data.get('webhook_url')
+            )
+            
+            return jsonify({
+                "status": "success",
+                "result": result,
+                "job_id": job_id
+            })
+            
+        except Exception as e:
+            logger.exception(f"Error añadiendo audio a video: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "error": "processing_error",
+                "message": str(e)
+            }), 500
+    
+    @app.route('/debug/routes')
+    def list_routes():
+        routes = []
+        for rule in app.url_map.iter_rules():
+            routes.append({
+                "endpoint": rule.endpoint,
+                "methods": list(rule.methods),
+                "path": str(rule)
+            })
+        return jsonify(routes)
+    
     @app.errorhandler(Exception)
     def handle_exception(e):
         logger.exception(f"Error no manejado: {str(e)}")
@@ -118,7 +161,6 @@ def create_app():
     return app
 
 def _check_ffmpeg():
-    """Check if FFmpeg is available and working"""
     try:
         result = subprocess.run(
             ['ffmpeg', '-version'], 
@@ -132,7 +174,6 @@ def _check_ffmpeg():
         return False
 
 def _check_storage():
-    """Check if storage directory is writable"""
     try:
         test_file = os.path.join(settings.STORAGE_PATH, '.write_test')
         with open(test_file, 'w') as f:

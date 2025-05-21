@@ -1,3 +1,4 @@
+# src/api/routes/__init__.py
 from .video_routes import video_bp
 from .media_routes import media_bp
 from .image_routes import image_bp
