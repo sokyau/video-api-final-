@@ -44,23 +44,34 @@ task_functions = {}
 
 def load_task_functions():
     """Carga las funciones de tarea disponibles."""
-    # Importar servicios
-    from src.services.video_service import add_captions_to_video, process_meme_overlay, concatenate_videos_service
-    from src.services.media_service import extract_audio, transcribe_media
-    from src.services.animation_service import animated_text_service
-    from src.services.image_service import overlay_image_on_video, generate_thumbnail
-    
     global task_functions
-    task_functions.update({
-        'add_captions_to_video': add_captions_to_video,
-        'process_meme_overlay': process_meme_overlay,
-        'concatenate_videos': concatenate_videos_service,
-        'extract_audio': extract_audio,
-        'transcribe_media': transcribe_media,
-        'animated_text': animated_text_service,
-        'overlay_image_on_video': overlay_image_on_video,
-        'generate_thumbnail': generate_thumbnail
-    })
+    
+    # Usamos un diccionario de funciones importadas dinámicamente
+    task_functions = {}
+    
+    # Función helper para importar e incorporar
+    def import_and_add(module_path, function_names):
+        try:
+            module = __import__(module_path, fromlist=function_names)
+            for function_name in function_names:
+                if hasattr(module, function_name):
+                    task_functions[function_name] = getattr(module, function_name)
+        except Exception as e:
+            logger.error(f"Error importando {module_path}.{function_names}: {str(e)}")
+    
+    # Importar cada servicio por separado
+    import_and_add("src.services.video_service", 
+                 ["add_captions_to_video", "process_meme_overlay", 
+                  "concatenate_videos_service", "add_audio_to_video"])
+    
+    import_and_add("src.services.media_service",
+                 ["extract_audio", "transcribe_media"])
+    
+    import_and_add("src.services.animation_service",
+                 ["animated_text_service"])
+    
+    import_and_add("src.services.image_service",
+                 ["overlay_image_on_video", "generate_thumbnail"])
     
     logger.info(f"Cargadas {len(task_functions)} funciones de tarea")
 

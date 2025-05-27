@@ -51,7 +51,7 @@ def _get_task_registry():
         Dict con las funciones de tarea registradas
     """
     # Importar servicios bajo demanda
-    from src.services.video_service import add_captions_to_video, process_meme_overlay, concatenate_videos_service
+    from src.services.video_service import add_captions_to_video, process_meme_overlay, concatenate_videos_service, add_audio_to_video
     from src.services.media_service import extract_audio, transcribe_media
     from src.services.animation_service import animated_text_service
     
@@ -62,7 +62,8 @@ def _get_task_registry():
         'concatenate_videos': concatenate_videos_service,
         'extract_audio': extract_audio,
         'transcribe_media': transcribe_media,
-        'animated_text': animated_text_service
+        'animated_text': animated_text_service,
+        'add_audio_to_video': add_audio_to_video
     }
 
 def get_task_status(job_id):

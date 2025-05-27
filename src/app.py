@@ -95,37 +95,6 @@ def create_app():
             
         return send_from_directory(settings.STORAGE_PATH, filename)
     
-    @app.route('/api/v1/video/add-audio', methods=['POST'])
-    @require_api_key
-    def add_audio_direct():
-        data = request.get_json()
-        
-        try:
-            job_id = data.get('id')
-            
-            result = add_audio_to_video(
-                video_url=data['video_url'],
-                audio_url=data['audio_url'],
-                replace_audio=data.get('replace_audio', True),
-                audio_volume=data.get('audio_volume', 1.0),
-                job_id=job_id,
-                webhook_url=data.get('webhook_url')
-            )
-            
-            return jsonify({
-                "status": "success",
-                "result": result,
-                "job_id": job_id
-            })
-            
-        except Exception as e:
-            logger.exception(f"Error añadiendo audio a video: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "error": "processing_error",
-                "message": str(e)
-            }), 500
-    
     @app.route('/debug/routes')
     def list_routes():
         routes = []

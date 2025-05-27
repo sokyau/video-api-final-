@@ -3,6 +3,7 @@ Services module initialization.
 All imports are within __all__ to avoid circular imports.
 """
 
+# Define exported symbols but import lazily
 __all__ = [
     'add_captions_to_video',
     'process_meme_overlay',
@@ -30,9 +31,13 @@ __all__ = [
     'add_audio_to_video'
 ]
 
+# Use lazy imports pattern to break circular dependencies
+# Do not import modules at the top level
+
 def __getattr__(name):
     """Lazy import strategy to avoid circular imports"""
     if name in __all__:
+        # Import the appropriate module based on the requested name
         if name in ['add_captions_to_video', 'process_meme_overlay', 'concatenate_videos_service', 'add_audio_to_video']:
             from .video_service import add_captions_to_video, process_meme_overlay, concatenate_videos_service, add_audio_to_video
             return locals()[name]
@@ -69,4 +74,5 @@ def __getattr__(name):
             from .queue_service import process_queue, enqueue_job
             return locals()[name]
     
+    # If we get here, the name isn't in __all__
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
